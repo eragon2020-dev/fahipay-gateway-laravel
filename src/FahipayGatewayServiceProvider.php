@@ -4,6 +4,8 @@ namespace Fahipay\Gateway;
 
 use Fahipay\Gateway\Contracts\GatewayInterface;
 use Fahipay\Gateway\Contracts\PaymentHandlerInterface;
+use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
 
 class FahipayGatewayServiceProvider extends ServiceProvider
