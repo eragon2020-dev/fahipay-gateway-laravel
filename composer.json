@@ -1,5 +1,5 @@
 {
-    "name": "fahipay/gateway-laravel",
+    "name": "fahipaydev/gateway-laravel",
     "description": "FahiPay Payment Gateway integration for Laravel",
     "keywords": [
         "laravel",
@@ -12,11 +12,11 @@
     "license": "MIT",
     "authors": [
         {
-            "name": "FahiPay",
-            "email": "support@fahipay.mv"
+            "name": "FahiPay Dev",
+            "email": "dev@fahipay.mv"
         }
     ],
-    "homepage": "https://github.com/fahipay/gateway-laravel",
+    "homepage": "https://github.com/eragon2020-dev/fahipay-gateway-laravel",
     "require": {
         "php": "^8.2",
         "laravel": "^13.0",
