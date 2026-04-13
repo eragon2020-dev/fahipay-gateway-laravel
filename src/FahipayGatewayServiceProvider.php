@@ -1,0 +1,116 @@
+<?php
+
+namespace Fahipay\Gateway;
+
+use Fahipay\Gateway\Contracts\GatewayInterface;
+use Fahipay\Gateway\Contracts\PaymentHandlerInterface;
+use Illuminate\Support\ServiceProvider;
+
+class FahipayGatewayServiceProvider extends ServiceProvider
+{
+    public function register(): void
+    {
+        $this->mergeConfigFrom(__DIR__ . '/../config/fahipay.php', 'fahipay');
+
+        $this->app->singleton(FahipayGateway::class, function ($app) {
+            return new FahipayGateway();
+        });
+
+        $this->app->singleton(GatewayInterface::class, FahipayGateway::class);
+
+        $this->app->alias(FahipayGateway::class, 'fahipay-gateway');
+
+        $this->registerHelpers();
+    }
+
+    public function boot(): void
+    {
+        if ($this->app->runningInConsole()) {
+            $this->publishConfig();
+            $this->publishMigrations();
+            $this->publishViews();
+            $this->registerCommands();
+        }
+
+        $this->registerRoutes();
+        $this->registerEvents();
+        $this->registerTranslations();
+    }
+
+    protected function registerHelpers(): void
+    {
+        $helpers = __DIR__ . '/../src/Support/helpers.php';
+        if (file_exists($helpers)) {
+            require_once $helpers;
+        }
+    }
+
+    protected function publishConfig(): void
+    {
+        $this->publishes([
+            __DIR__ . '/../config/fahipay.php' => config_path('fahipay.php'),
+        ], 'fahipay-config');
+    }
+
+    protected function publishMigrations(): void
+    {
+        if (! $this->app->runningInConsole()) {
+            return;
+        }
+
+        $this->publishes([
+            __DIR__ . '/../database/migrations' => database_path('migrations'),
+        ], 'fahipay-migrations');
+    }
+
+    protected function publishViews(): void
+    {
+        $this->publishes([
+            __DIR__ . '/../resources/views' => resource_path('views/vendor/fahipay'),
+        ], 'fahipay-views');
+    }
+
+    protected function registerCommands(): void
+    {
+        $this->commands([
+            Console\InstallCommand::class,
+            Console\CreatePaymentCommand::class,
+            Console\CheckPaymentCommand::class,
+        ]);
+    }
+
+    protected function registerRoutes(): void
+    {
+        if ($this->app['config']->get('fahipay.routes.enabled', true)) {
+            Route::group([
+                'prefix' => $this->app['config']->get('fahipay.routes.prefix', 'fahipay'),
+                'middleware' => $this->app['config']->get('fahipay.routes.middleware', ['web']),
+            ], function () {
+                require __DIR__ . '/../routes/web.php';
+            });
+
+            if ($this->app['config']->get('fahipay.api.enabled', false)) {
+                Route::prefix($this->app['config']->get('fahipay.api.prefix', 'api/fahipay'))
+                    ->group(function () {
+                        require __DIR__ . '/../routes/api.php';
+                    });
+            }
+        }
+    }
+
+    protected function registerEvents(): void
+    {
+        $events = $this->app['config']->get('fahipay.events', []);
+
+        foreach ($events as $event => $listeners) {
+            foreach ($listeners as $listener) {
+                Event::listen($event, $listener);
+            }
+        }
+    }
+
+    protected function registerTranslations(): void
+    {
+        $this->loadTranslationsFrom(__DIR__ . '/../lang', 'fahipay');
+    }
+}

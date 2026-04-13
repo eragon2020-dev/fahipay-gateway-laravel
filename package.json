@@ -1,0 +1,8 @@
+<?php
+
+return [
+    'name' => 'Fahipay Gateway',
+    'providers' => [
+        'Fahipay\Gateway\FahipayGatewayServiceProvider',
+    ],
+];

@@ -1,0 +1,41 @@
+<?php
+
+namespace Fahipay\Gateway\Facades;
+
+use Fahipay\Gateway\Data\PaymentData;
+use Fahipay\Gateway\Data\TransactionData;
+use Fahipay\Gateway\FahipayGateway;
+use Illuminate\Support\Facades\Facade;
+
+/**
+ * @method static PaymentData createPayment(string $transactionId, float $amount, ?string $description = null, ?array $metadata = [])
+ * @method static PaymentData create(array $config)
+ * @method static string getPaymentUrl(string $transactionId, float $amount)
+ * @method static TransactionData|null getTransaction(string $transactionId)
+ * @method static TransactionData|null getPayment(string $transactionId)
+ * @method static bool verifySignature(string $success, string $transactionId, ?string $approvalCode, string $signature)
+ * @method static bool validateCallback(\Illuminate\Http\Request $request)
+ * @method static TransactionData handleCallback(\Illuminate\Http\Request $request)
+ * @method static TransactionData processWebhook(\Illuminate\Http\Request $request)
+ * @method static string getLink(string $transactionId, float $amount)
+ * @method static string generateSignature(string $transactionId, float $amount, string $timestamp)
+ * @method static \FahipayGateway setMerchantId(string $merchantId)
+ * @method static \FahipayGateway setSecretKey(string $secretKey)
+ * @method static \FahipayGateway setTestMode(bool $testMode = true)
+ * @method static \FahipayGateway setReturnUrl(string $url)
+ * @method static \FahipayGateway setCancelUrl(string $url)
+ * @method static \FahipayGateway setErrorUrl(string $url)
+ * @method static bool isTestMode()
+ * @method static bool isConfigured()
+ * @method static ?string getLastTransactionId()
+ * @method static ?array getLastResponse()
+ * 
+ * @see \Fahipay\Gateway\FahipayGateway
+ */
+class FahipayGateway extends Facade
+{
+    protected static function getFacadeAccessor(): string
+    {
+        return \Fahipay\Gateway\FahipayGateway::class;
+    }
+}

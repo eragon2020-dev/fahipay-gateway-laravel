@@ -1,0 +1,69 @@
+{
+    "name": "fahipay/gateway-laravel",
+    "description": "FahiPay Payment Gateway integration for Laravel",
+    "keywords": [
+        "laravel",
+        "fahipay",
+        "payment-gateway",
+        "maldives",
+        "payment"
+    ],
+    "type": "laravel-package",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "FahiPay",
+            "email": "support@fahipay.mv"
+        }
+    ],
+    "homepage": "https://github.com/fahipay/gateway-laravel",
+    "require": {
+        "php": "^8.2",
+        "laravel": "^13.0",
+        "illuminate/contracts": "^13.0"
+    },
+    "suggest": {
+        "livewire/livewire": "Required for Livewire payment components"
+    },
+    "require-dev": {
+        "laravel/pint": "^1.14",
+        "mockery/mockery": "^1.6",
+        "nunomaduro/collision": "^8.1",
+        "orchestra/testbench": "^9.0",
+        "pestphp/pest": "^2.34",
+        "pestphp/pest-plugin-laravel": "^2.4",
+        "php-http/mock-client": "^1.6"
+    },
+    "autoload": {
+        "psr-4": {
+            "Fahipay\\Gateway\\": "src/"
+        },
+        "files": [
+            "src/Support/helpers.php"
+        ]
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Fahipay\\Gateway\\Tests\\": "tests/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Fahipay\\Gateway\\FahipayGatewayServiceProvider"
+            ],
+            "facades": [
+                "FahipayGateway"
+            ]
+        }
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true,
+    "config": {
+        "sort-packages": true,
+        "allow-plugins": {
+            "pestphp/pest-plugin": true,
+            "php-http/discovery": true
+        }
+    }
+}
