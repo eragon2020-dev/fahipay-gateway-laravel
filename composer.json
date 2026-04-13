@@ -19,8 +19,8 @@
     "homepage": "https://github.com/eragon2020-dev/fahipay-gateway-laravel",
     "require": {
         "php": "^8.2",
-        "laravel": "^13.0",
-        "illuminate/contracts": "^13.0"
+        "laravel/framework": "^11.0|^12.0|^13.0",
+        "illuminate/contracts": "^11.0|^12.0|^13.0"
     },
     "suggest": {
         "livewire/livewire": "Required for Livewire payment components"
