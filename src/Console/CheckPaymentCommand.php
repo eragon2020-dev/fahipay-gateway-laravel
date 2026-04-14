@@ -23,8 +23,8 @@ class CheckPaymentCommand extends Command
             $this->info("Payment found!");
             $this->line("Status: {$transaction->status->label()}");
             $this->line("Amount: MVR {$transaction->getAmountFormatted()}");
-            $this->line("Method: {$transaction->method ?? 'N/A'}");
-            $this->line("Approval Code: {$transaction->approvalCode ?? 'N/A'}");
+            $this->line("Method: " . ($transaction->method ?? 'N/A'));
+            $this->line("Approval Code: " . ($transaction->approvalCode ?? 'N/A'));
             
             if ($transaction->time) {
                 $this->line("Time: {$transaction->time->format('Y-m-d H:i:s')}");

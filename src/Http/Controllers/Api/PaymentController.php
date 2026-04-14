@@ -2,7 +2,7 @@
 
 namespace Fahipay\Gateway\Http\Controllers\Api;
 
-use App\Http\Controllers\Controller;
+use Illuminate\Routing\Controller;
 use Fahipay\Gateway\Actions\CreatePaymentAction;
 use Fahipay\Gateway\Actions\VerifyPaymentAction;
 use Fahipay\Gateway\Http\Requests\CreatePaymentRequest;

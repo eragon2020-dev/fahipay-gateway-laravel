@@ -4,7 +4,7 @@ namespace Fahipay\Gateway\Facades;
 
 use Fahipay\Gateway\Data\PaymentData;
 use Fahipay\Gateway\Data\TransactionData;
-use Fahipay\Gateway\FahipayGateway;
+use Fahipay\Gateway\FahipayGateway as Gateway;
 use Illuminate\Support\Facades\Facade;
 
 /**
@@ -19,12 +19,12 @@ use Illuminate\Support\Facades\Facade;
  * @method static TransactionData processWebhook(\Illuminate\Http\Request $request)
  * @method static string getLink(string $transactionId, float $amount)
  * @method static string generateSignature(string $transactionId, float $amount, string $timestamp)
- * @method static \FahipayGateway setMerchantId(string $merchantId)
- * @method static \FahipayGateway setSecretKey(string $secretKey)
- * @method static \FahipayGateway setTestMode(bool $testMode = true)
- * @method static \FahipayGateway setReturnUrl(string $url)
- * @method static \FahipayGateway setCancelUrl(string $url)
- * @method static \FahipayGateway setErrorUrl(string $url)
+ * @method static Gateway setMerchantId(string $merchantId)
+ * @method static Gateway setSecretKey(string $secretKey)
+ * @method static Gateway setTestMode(bool $testMode = true)
+ * @method static Gateway setReturnUrl(string $url)
+ * @method static Gateway setCancelUrl(string $url)
+ * @method static Gateway setErrorUrl(string $url)
  * @method static bool isTestMode()
  * @method static bool isConfigured()
  * @method static ?string getLastTransactionId()
@@ -36,6 +36,6 @@ class FahipayGateway extends Facade
 {
     protected static function getFacadeAccessor(): string
     {
-        return \Fahipay\Gateway\FahipayGateway::class;
+        return Gateway::class;
     }
 }

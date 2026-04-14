@@ -2,7 +2,7 @@
 
 namespace Fahipay\Gateway\Http\Controllers;
 
-use App\Http\Controllers\Controller;
+use Illuminate\Routing\Controller;
 use Fahipay\Gateway\FahipayGateway;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;

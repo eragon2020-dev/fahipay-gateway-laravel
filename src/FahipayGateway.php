@@ -191,6 +191,7 @@ class FahipayGateway
 
     /**
      * Get payment URL for redirect
+     * FahiPay requires a POST to /payment/ which returns a redirect to the payment page
      */
     public function getPaymentUrl(string $transactionId, float $amount): string
     {
@@ -198,7 +199,11 @@ class FahipayGateway
         $amountInCents = (int) round($amount * 100);
         $signature = $this->generateSignature($transactionId, $amountInCents);
 
-        $params = http_build_query([
+        $webUrl = $this->testMode 
+            ? 'https://test.fahipay.mv/payment/'
+            : 'https://fahipay.mv/payment/';
+
+        $params = [
             'ShopID' => $this->shopId,
             'ShoppingCartID' => $transactionId,
             'TotalAmount' => $amountInCents,
@@ -206,9 +211,40 @@ class FahipayGateway
             'ReturnURL' => $this->returnUrl,
             'ReturnErrorURL' => $this->errorUrl,
             'CancelURL' => $this->cancelUrl,
-        ]);
+        ];
 
-        return "{$this->baseUrl}/pay?{$params}";
+        // Use cURL directly since Guzzle 7 doesn't have getUri() method
+        $ch = curl_init();
+        
+        // First POST to get any session/cookies
+        curl_setopt($ch, CURLOPT_URL, $webUrl);
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($params));
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_COOKIEJAR, '/tmp/fahipay_session.txt');
+        curl_setopt($ch, CURLOPT_COOKIEFILE, '/tmp/fahipay_session.txt');
+        curl_setopt($ch, CURLOPT_HEADER, true);
+        curl_setopt($ch, CURLOPT_FOLLOWLOCATION, false);
+        
+        $response = curl_exec($ch);
+        $info = curl_getinfo($ch);
+        
+        // Check for redirect in headers
+        $redirectUrl = null;
+        if ($info['http_code'] == 302 || $info['http_code'] == 301) {
+            preg_match('/Location: (.*)/i', $response, $matches);
+            $redirectUrl = isset($matches[1]) ? trim($matches[1]) : null;
+        }
+        
+        curl_close($ch);
+        
+        // If redirect found, that's our payment URL
+        if ($redirectUrl) {
+            return $redirectUrl;
+        }
+        
+        // Fallback: return the direct payment URL (works when opened in browser)
+        return $webUrl . '?' . http_build_query($params);
     }
 
     /**
