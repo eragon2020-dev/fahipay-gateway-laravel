@@ -153,8 +153,8 @@ public function createPayment(
 1. **Validation**: Checks if Shop ID and Secret Key are set
 2. **Amount Conversion**: Converts MVR to cents (multiply by 100)
    - Example: 19.50 MVR → 1950 cents
-3. **Signature Generation**: Creates SHA1+Base64 signature
-   - Format: `Base64(sha1(ShopID + SecretKey + ShoppingCartID + SecretKey + Amount + SecretKey))`
+3. **Signature Generation**: Creates HMAC-SHA256+Base64 signature
+   - Format: `Base64(HMAC-SHA256(ShopID + SecretKey + ShoppingCartID + SecretKey + Amount + SecretKey + Timestamp + SecretKey))`
 4. **API Request**: Sends POST to `https://fahipay.mv/api/merchants/createTxn/`
 5. **Event Dispatch**: Fires `PaymentInitiatedEvent`
 6. **Cache Storage**: Stores payment data in cache for 24 hours
@@ -216,9 +216,9 @@ public function verifySignature(
 ): bool
 ```
 
-**Signature Format** (from API docs):
+**Signature Format** (updated to use HMAC-SHA256):
 ```
-Base64(sha1(ShopID + SecretKey + ShoppingCartID + SecretKey + Success + SecretKey + ApprovalCode + SecretKey))
+Base64(HMAC-SHA256(ShopID + SecretKey + ShoppingCartID + SecretKey + Success + SecretKey + ApprovalCode + SecretKey))
 ```
 
 **Security**: Uses `hash_equals()` for timing-safe comparison to prevent timing attacks.
@@ -432,16 +432,16 @@ class CheckoutController extends Controller
 
 ### 6.1 Signature Generation
 
-The package uses SHA1 + Base64 encoding for signatures, as required by FahiPay API:
+The package uses HMAC-SHA256 + Base64 encoding for signatures (upgraded from SHA1 for security):
 
 ```php
-// Request signature
-$sigData = $shopId . $secretKey . $transactionId . $secretKey . $amount . $secretKey;
-$signature = base64_encode(sha1($sigData, true));
+// Request signature (with timestamp for replay protection)
+$sigData = $shopId . $secretKey . $transactionId . $secretKey . $amount . $secretKey . $timestamp . $secretKey;
+$signature = base64_encode(hash_hmac('sha256', $sigData, $secretKey, true));
 
 // Callback signature (includes Success and ApprovalCode)
 $sigData = $shopId . $secretKey . $transactionId . $secretKey . $success . $secretKey . $approvalCode . $secretKey;
-$signature = base64_encode(sha1($sigData, true));
+$signature = base64_encode(hash_hmac('sha256', $sigData, $secretKey, true));
 ```
 
 ### 6.2 Security Best Practices

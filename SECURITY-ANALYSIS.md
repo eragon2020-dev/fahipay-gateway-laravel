@@ -86,6 +86,115 @@ $perPage = min($request->integer('per_page', 15), 100);
 
 ---
 
+### 6. ✅ Weak Cryptographic Hashing (SHA-1)
+
+**Severity:** Critical
+
+**Issue:** The package used SHA-1 for all signature generation and verification. SHA-1 is cryptographically broken and vulnerable to collision attacks.
+
+**Fix Applied:**
+```php
+// Replaced sha1() with HMAC-SHA256
+$signature = base64_encode(hash_hmac('sha256', $signatureData, $this->secretKey, true));
+```
+
+---
+
+### 7. ✅ Replay Attack Vulnerability
+
+**Severity:** High
+
+**Issue:** Neither payment creation nor callback verification included timestamp validation, allowing attackers to replay valid callbacks.
+
+**Fix Applied:**
+```php
+// Added timestamp to signature generation
+public function generateSignature(string $transactionId, int $amountInCents, ?int $timestamp = null): string
+{
+    $timestamp = $timestamp ?? time();
+    $signatureData = $this->shopId . $this->secretKey . $transactionId . $this->secretKey . $amountInCents . $this->secretKey . $timestamp . $this->secretKey;
+    return base64_encode(hash_hmac('sha256', $signatureData, $this->secretKey, true));
+}
+
+// Added replay attack protection method
+public function isSignatureExpired(int $timestamp, int $validitySeconds = 300): bool
+{
+    return (time() - $timestamp) > $validitySeconds;
+}
+```
+
+---
+
+### 8. ✅ Insecure File Handling
+
+**Severity:** Medium
+
+**Issue:** Used hardcoded `/tmp/fahipay_session.txt` for cURL cookies - security risk on multi-user systems.
+
+**Fix Applied:**
+```php
+// Use storage_path() instead
+$cookiePath = storage_path('fahipay/cookies.txt');
+if (!is_dir(dirname($cookiePath))) {
+    mkdir(dirname($cookiePath), 0755, true);
+}
+```
+
+---
+
+### 9. ✅ SSRF Vulnerability in Payment URL
+
+**Severity:** High
+
+**Issue:** `getPaymentUrl()` followed redirect URLs without validating the target host.
+
+**Fix Applied:**
+```php
+protected function isValidRedirectUrl(string $url): bool
+{
+    $allowedHosts = ['fahipay.mv', 'test.fahipay.mv', 'www.fahipay.mv', 'pay.fahipay.mv'];
+    $parsed = parse_url($url);
+    return in_array($parsed['host'] ?? '', $allowedHosts, true);
+}
+```
+
+---
+
+### 10. ✅ Unauthenticated State Changes
+
+**Severity:** High
+
+**Issue:** WebhookController's `cancel()` and `error()` methods didn't validate signatures - attackers could spoof callbacks.
+
+**Fix Applied:**
+```php
+public function cancel(Request $request)
+{
+    if (!$this->gateway->validateCallback($request)) {
+        return view('fahipay::error', ['message' => 'Invalid signature']);
+    }
+    // ... rest of method
+}
+```
+
+---
+
+### 11. ✅ CSRF Conflict on Webhook Routes
+
+**Severity:** Medium
+
+**Issue:** Webhook routes were in `routes/web.php` under the web middleware group, causing Laravel to block POST requests with 419 error.
+
+**Fix Applied:**
+```php
+// Moved to routes/api.php with api middleware
+Route::post('/fahipay/webhook', [WebhookController::class, 'handle'])
+    ->middleware([VerifyWebhookSignature::class])
+    ->name('fahipay.webhook');
+```
+
+---
+
 ## Security Features Confirmed Working
 
 | Feature | Status | Implementation |
