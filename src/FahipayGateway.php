@@ -230,7 +230,7 @@ class FahipayGateway
             'CancelURL' => $this->cancelUrl,
         ];
 
-        $cookiePath = storage_path('fahipay/cookies.txt');
+        $cookiePath = storage_path('fahipay/cookies_' . uniqid() . '.txt');
         if (!is_dir(dirname($cookiePath))) {
             mkdir(dirname($cookiePath), 0755, true);
         }
@@ -256,6 +256,9 @@ class FahipayGateway
         }
         
         curl_close($ch);
+        
+        // Clean up temporary cookie file
+        @unlink($cookiePath);
         
         if ($redirectUrl && $this->isValidRedirectUrl($redirectUrl)) {
             return $redirectUrl;
@@ -291,9 +294,12 @@ class FahipayGateway
      */
     public function getTransaction(string $transactionId): ?TransactionData
     {
-        $signature = $this->generateQuerySignature($transactionId);
+        $timestamp = time();
+        $signature = $this->generateQuerySignature($transactionId, $timestamp);
 
-        $response = $this->makeRequest('/getTxn/?mref=' . urlencode($transactionId), []);
+        $response = $this->makeRequest('/getTxn/?mref=' . urlencode($transactionId), [
+            'timestamp' => $timestamp,
+        ]);
 
         if (($response['type'] ?? '') === 'success' && isset($response['data'])) {
             return new TransactionData(
@@ -335,6 +341,7 @@ class FahipayGateway
 
     /**
      * Validate callback from FahiPay
+     * Includes replay attack protection by checking timestamp
      */
     public function validateCallback(Request $request): bool
     {
@@ -342,6 +349,18 @@ class FahipayGateway
         $transactionId = $request->get('ShoppingCartID', '');
         $approvalCode = $request->get('ApprovalCode');
         $signature = $request->get('Signature', '');
+        
+        // Replay attack protection: check if timestamp exists and is not expired
+        $timestamp = $request->get('Timestamp');
+        if ($timestamp !== null) {
+            if ($this->isSignatureExpired((int) $timestamp)) {
+                Log::warning('FahiPay: Callback timestamp expired (replay attack prevention)', [
+                    'transaction_id' => $transactionId,
+                    'timestamp' => $timestamp,
+                ]);
+                return false;
+            }
+        }
 
         return $this->verifySignature($success, $transactionId, $approvalCode, $signature);
     }
@@ -367,6 +386,16 @@ class FahipayGateway
 
         $status = $success === 'true' ? PaymentStatus::COMPLETED : PaymentStatus::FAILED;
 
+        // Retrieve payment amount from cache for accurate transaction data
+        $paymentData = Cache::get("fahipay_payment_{$transactionId}");
+        $amount = 0;
+        if ($paymentData && isset($paymentData['amount'])) {
+            $amount = $paymentData['amount'];
+        } elseif ($request->has('TotalAmount')) {
+            // Fallback: try to get from callback request (in cents)
+            $amount = (int) $request->get('TotalAmount', 0) / 100;
+        }
+
         Event::dispatch(match ($status) {
             PaymentStatus::COMPLETED => new PaymentCompletedEvent($transactionId, $approvalCode),
             PaymentStatus::FAILED => new PaymentFailedEvent($transactionId),
@@ -377,7 +406,7 @@ class FahipayGateway
 
         return new TransactionData(
             transactionId: $transactionId,
-            amount: 0,
+            amount: $amount,
             status: $status,
             approvalCode: $approvalCode,
             rawResponse: $request->all()
@@ -430,10 +459,12 @@ class FahipayGateway
 
     /**
      * Generate signature for query requests
+     * Includes timestamp to prevent signature replay attacks
      */
-    protected function generateQuerySignature(string $transactionId): string
+    protected function generateQuerySignature(string $transactionId, ?int $timestamp = null): string
     {
-        $signatureData = $this->shopId . $this->secretKey . $transactionId . $this->secretKey;
+        $timestamp = $timestamp ?? time();
+        $signatureData = $this->shopId . $this->secretKey . $transactionId . $this->secretKey . $timestamp . $this->secretKey;
         return base64_encode(hash_hmac('sha256', $signatureData, $this->secretKey, true));
     }
 

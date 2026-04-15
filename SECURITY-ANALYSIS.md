@@ -195,6 +195,74 @@ Route::post('/fahipay/webhook', [WebhookController::class, 'handle'])
 
 ---
 
+### 12. ✅ Cookie Concurrency Issue
+
+**Severity:** Medium
+
+**Issue:** Used a single hardcoded cookie file path (`fahipay/cookies.txt`) for all requests, causing session mixing between concurrent users.
+
+**Fix Applied:**
+```php
+// Use unique filename per request
+$cookiePath = storage_path('fahipay/cookies_' . uniqid() . '.txt');
+// ... after curl_close:
+// Clean up temporary cookie file
+@unlink($cookiePath);
+```
+
+---
+
+### 13. ✅ Missing Amount in handleCallback
+
+**Severity:** High
+
+**Issue:** `handleCallback()` returned `amount: 0` in TransactionData, making it useless for verifying payment amounts.
+
+**Fix Applied:**
+```php
+// Retrieve payment amount from cache for accurate transaction data
+$paymentData = Cache::get("fahipay_payment_{$transactionId}");
+$amount = 0;
+if ($paymentData && isset($paymentData['amount'])) {
+    $amount = $paymentData['amount'];
+} elseif ($request->has('TotalAmount')) {
+    // Fallback: try to get from callback request (in cents)
+    $amount = (int) $request->get('TotalAmount', 0) / 100;
+}
+```
+
+---
+
+### 14. ✅ Query Signature Without Timestamp
+
+**Severity:** Medium
+
+**Issue:** `generateQuerySignature()` didn't include timestamp, making query signatures static and vulnerable to replay.
+
+**Fix Applied:**
+```php
+protected function generateQuerySignature(string $transactionId, ?int $timestamp = null): string
+{
+    $timestamp = $timestamp ?? time();
+    $signatureData = $this->shopId . $this->secretKey . $transactionId . $this->secretKey . $timestamp . $this->secretKey;
+    return base64_encode(hash_hmac('sha256', $signatureData, $this->secretKey, true));
+}
+```
+
+---
+
+### 15. ✅ XSS Vulnerability Check
+
+**Severity:** Low (False Positive)
+
+**Issue:** Investigated potential XSS in WebhookController's error/success methods passing request parameters to views.
+
+**Finding:** No vulnerability exists - views use proper Blade escaping (`{{ $message }}`), not raw output (`{!! $message !!}`).
+
+**Status:** ✅ Secure
+
+---
+
 ## Security Features Confirmed Working
 
 | Feature | Status | Implementation |
@@ -267,3 +335,45 @@ The package has been hardened against common attack vectors. The most critical i
 2. Configure allowed redirect hosts
 3. Add rate limiting middleware
 4. Conduct penetration testing in staging environment
+---
+
+### 12. Cookie Concurrency Issue
+
+**Severity:** Medium
+
+**Issue:** Used a single hardcoded cookie file path for all requests, causing session mixing between concurrent users.
+
+**Fix Applied:** Use unique filename per request with `uniqid()` and cleanup after use.
+
+---
+
+### 13. Missing Amount in handleCallback
+
+**Severity:** High
+
+**Issue:** `handleCallback()` returned `amount: 0` in TransactionData.
+
+**Fix Applied:** Retrieve amount from cache or callback request.
+
+---
+
+### 14. Query Signature Without Timestamp
+
+**Severity:** Medium
+
+**Issue:** Query signatures were static and vulnerable to replay.
+
+**Fix Applied:** Added timestamp to `generateQuerySignature()`.
+
+---
+
+### 15. XSS Vulnerability Check
+
+**Severity:** Low (False Positive)
+
+**Issue:** Investigated potential XSS in WebhookController.
+
+**Finding:** Views use proper Blade escaping (`{{ $message }}`). Status: Secure.
+
+---
+
