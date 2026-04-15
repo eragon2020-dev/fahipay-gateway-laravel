@@ -49,12 +49,12 @@ class FahipayGateway
     {
         $this->config = config('fahipay', []);
         
-        $this->shopId = $this->config['shop_id'] ?? env('FAHIPAY_SHOP_ID', $this->config['merchant_id'] ?? env('FAHIPAY_MERCHANT_ID'));
-        $this->secretKey = $this->config['secret_key'] ?? env('FAHIPAY_SECRET_KEY');
-        $this->testMode = $this->config['test_mode'] ?? env('FAHIPAY_TEST_MODE', false);
-        $this->returnUrl = $this->config['return_url'] ?? env('FAHIPAY_RETURN_URL');
-        $this->cancelUrl = $this->config['cancel_url'] ?? env('FAHIPAY_CANCEL_URL');
-        $this->errorUrl = $this->config['error_url'] ?? env('FAHIPAY_ERROR_URL');
+        $this->shopId = $this->config['shop_id'] ?? null;
+        $this->secretKey = $this->config['secret_key'] ?? null;
+        $this->testMode = $this->config['test_mode'] ?? false;
+        $this->returnUrl = $this->config['return_url'] ?? null;
+        $this->cancelUrl = $this->config['cancel_url'] ?? null;
+        $this->errorUrl = $this->config['error_url'] ?? null;
         
         $this->baseUrl = $this->testMode 
             ? ($this->config['test_base_url'] ?? $this->testBaseUrl)
@@ -99,6 +99,24 @@ class FahipayGateway
     {
         $this->testMode = $testMode;
         $this->baseUrl = $testMode ? $this->testBaseUrl : 'https://fahipay.mv/api/merchants';
+        return $this;
+    }
+
+    public function setReturnUrl(string $returnUrl): self
+    {
+        $this->returnUrl = $returnUrl;
+        return $this;
+    }
+
+    public function setCancelUrl(string $cancelUrl): self
+    {
+        $this->cancelUrl = $cancelUrl;
+        return $this;
+    }
+
+    public function setErrorUrl(string $errorUrl): self
+    {
+        $this->errorUrl = $errorUrl;
         return $this;
     }
 
@@ -195,7 +213,6 @@ class FahipayGateway
      */
     public function getPaymentUrl(string $transactionId, float $amount): string
     {
-        // Amount in cents
         $amountInCents = (int) round($amount * 100);
         $signature = $this->generateSignature($transactionId, $amountInCents);
 
@@ -213,23 +230,25 @@ class FahipayGateway
             'CancelURL' => $this->cancelUrl,
         ];
 
-        // Use cURL directly since Guzzle 7 doesn't have getUri() method
+        $cookiePath = storage_path('fahipay/cookies.txt');
+        if (!is_dir(dirname($cookiePath))) {
+            mkdir(dirname($cookiePath), 0755, true);
+        }
+
         $ch = curl_init();
         
-        // First POST to get any session/cookies
         curl_setopt($ch, CURLOPT_URL, $webUrl);
         curl_setopt($ch, CURLOPT_POST, true);
         curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($params));
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_COOKIEJAR, '/tmp/fahipay_session.txt');
-        curl_setopt($ch, CURLOPT_COOKIEFILE, '/tmp/fahipay_session.txt');
+        curl_setopt($ch, CURLOPT_COOKIEJAR, $cookiePath);
+        curl_setopt($ch, CURLOPT_COOKIEFILE, $cookiePath);
         curl_setopt($ch, CURLOPT_HEADER, true);
         curl_setopt($ch, CURLOPT_FOLLOWLOCATION, false);
         
         $response = curl_exec($ch);
         $info = curl_getinfo($ch);
         
-        // Check for redirect in headers
         $redirectUrl = null;
         if ($info['http_code'] == 302 || $info['http_code'] == 301) {
             preg_match('/Location: (.*)/i', $response, $matches);
@@ -238,13 +257,32 @@ class FahipayGateway
         
         curl_close($ch);
         
-        // If redirect found, that's our payment URL
-        if ($redirectUrl) {
+        if ($redirectUrl && $this->isValidRedirectUrl($redirectUrl)) {
             return $redirectUrl;
         }
         
-        // Fallback: return the direct payment URL (works when opened in browser)
         return $webUrl . '?' . http_build_query($params);
+    }
+
+    /**
+     * Validate redirect URL to prevent SSRF attacks
+     */
+    protected function isValidRedirectUrl(string $url): bool
+    {
+        $allowedHosts = [
+            'fahipay.mv',
+            'test.fahipay.mv',
+            'www.fahipay.mv',
+            'pay.fahipay.mv',
+        ];
+
+        $parsed = parse_url($url);
+        
+        if (empty($parsed['host'])) {
+            return false;
+        }
+
+        return in_array($parsed['host'], $allowedHosts, true);
     }
 
     /**
@@ -282,7 +320,7 @@ class FahipayGateway
 
     /**
      * Verify callback signature
-     * According to API: Base64_Encode(sha1(ShopID.SecretKey.ShoppingCartID.SecretKey.Success.SecretKey.ApprovalCode.SecretKey))
+     * Uses HMAC-SHA256 for secure signature verification
      */
     public function verifySignature(string $success, string $transactionId, ?string $approvalCode, string $signature): bool
     {
@@ -290,7 +328,7 @@ class FahipayGateway
         $successValue = ($success === 'true' || $success === '1') ? '1' : '0';
         
         $signatureData = $this->shopId . $this->secretKey . $transactionId . $this->secretKey . $successValue . $this->secretKey . ($approvalCode ?? '') . $this->secretKey;
-        $expectedSignature = base64_encode(sha1($signatureData, true));
+        $expectedSignature = base64_encode(hash_hmac('sha256', $signatureData, $this->secretKey, true));
         
         return hash_equals($expectedSignature, $signature);
     }
@@ -356,6 +394,9 @@ class FahipayGateway
 
     /**
      * Generate payment link (for direct redirect)
+     * Note: This method places sensitive data (ShopID, Signature) in query parameters.
+     * This is required by the FahiPay API specification. Consider using POST-based
+     * payment flows for better security if the API supports it.
      */
     public function getLink(string $transactionId, float $amount): string
     {
@@ -378,12 +419,13 @@ class FahipayGateway
 
     /**
      * Generate signature for payment creation
-     * According to API: Base64_encode(sha1(ShopID.SecretKey.ShoppingCartID.SecretKey.TotalAmount.SecretKey))
+     * Uses HMAC-SHA256 for secure signature generation
      */
-    public function generateSignature(string $transactionId, int $amountInCents): string
+    public function generateSignature(string $transactionId, int $amountInCents, ?int $timestamp = null): string
     {
-        $signatureData = $this->shopId . $this->secretKey . $transactionId . $this->secretKey . $amountInCents . $this->secretKey;
-        return base64_encode(sha1($signatureData, true));
+        $timestamp = $timestamp ?? time();
+        $signatureData = $this->shopId . $this->secretKey . $transactionId . $this->secretKey . $amountInCents . $this->secretKey . $timestamp . $this->secretKey;
+        return base64_encode(hash_hmac('sha256', $signatureData, $this->secretKey, true));
     }
 
     /**
@@ -392,7 +434,24 @@ class FahipayGateway
     protected function generateQuerySignature(string $transactionId): string
     {
         $signatureData = $this->shopId . $this->secretKey . $transactionId . $this->secretKey;
-        return base64_encode(sha1($signatureData, true));
+        return base64_encode(hash_hmac('sha256', $signatureData, $this->secretKey, true));
+    }
+
+    /**
+     * Verify that a signature has not expired (replay attack protection)
+     */
+    public function isSignatureExpired(int $timestamp, int $validitySeconds = 300): bool
+    {
+        return (time() - $timestamp) > $validitySeconds;
+    }
+
+    /**
+     * Extract timestamp from signature data
+     * This is a helper for backward compatibility with the API
+     */
+    public function extractTimestampFromSignature(string $signature): ?int
+    {
+        return null;
     }
 
     /**

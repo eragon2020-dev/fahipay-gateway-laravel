@@ -7,10 +7,6 @@ Route::prefix('payment')->group(function () {
     Route::post('/initiate', [WebhookController::class, 'initiate'])->name('fahipay.payment.initiate');
 });
 
-Route::prefix('webhook')->group(function () {
-    Route::post('/fahipay', [WebhookController::class, 'handle'])->name('fahipay.webhook');
-});
-
 Route::prefix('callback')->group(function () {
     Route::get('/success', [WebhookController::class, 'success'])->name('fahipay.success');
     Route::get('/cancel', [WebhookController::class, 'cancel'])->name('fahipay.cancel');

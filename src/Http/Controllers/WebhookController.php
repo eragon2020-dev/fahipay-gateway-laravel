@@ -66,6 +66,12 @@ class WebhookController extends Controller
 
     public function cancel(Request $request)
     {
+        if (!$this->gateway->validateCallback($request)) {
+            return view('fahipay::error', [
+                'message' => 'Invalid signature',
+            ]);
+        }
+
         $transactionId = $request->get('ShoppingCartID');
         
         event(new \Fahipay\Gateway\Events\PaymentCancelledEvent($transactionId));
@@ -77,6 +83,12 @@ class WebhookController extends Controller
 
     public function error(Request $request)
     {
+        if (!$this->gateway->validateCallback($request)) {
+            return view('fahipay::error', [
+                'message' => 'Invalid signature',
+            ]);
+        }
+
         $transactionId = $request->get('ShoppingCartID');
         $message = $request->get('Message', 'Payment failed');
 

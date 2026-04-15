@@ -58,7 +58,7 @@ if (!function_exists('fahipay_is_test_mode')) {
 if (!function_exists('fahipay_is_configured')) {
     function fahipay_is_configured(): bool
     {
-        return !empty(config('fahipay.merchant_id')) && !empty(config('fahipay.secret_key'));
+        return !empty(config('fahipay.shop_id')) && !empty(config('fahipay.secret_key'));
     }
 }
 
@@ -77,8 +77,9 @@ if (!function_exists('fahipay_verify')) {
 }
 
 if (!function_exists('fahipay_generate_signature')) {
-    function fahipay_generate_signature(string $transactionId, float $amount, string $timestamp): string
+    function fahipay_generate_signature(string $transactionId, float|int $amount): string
     {
-        return FahipayGateway::generateSignature($transactionId, $amount, $timestamp);
+        $amountInCents = (int) round($amount * 100);
+        return FahipayGateway::generateSignature($transactionId, $amountInCents);
     }
 }
